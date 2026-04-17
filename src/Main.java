@@ -32,7 +32,7 @@ public class Main {
 
                         opcionCiclistas = teclado.nextInt();
                         teclado.nextLine();
-
+// Top 5 ciclistas con mejor rendimeiento
                         switch (opcionCiclistas) {
                             case 1:
                                 try (Connection conn = DriverManager.getConnection(url, user, password);
@@ -82,34 +82,30 @@ public class Main {
 
                         opcionEquipos = teclado.nextInt();
                         teclado.nextLine();
-
+// Comparativa equipo
                         switch (opcionEquipos) {
                             case 1:
                                 try (Connection conn = DriverManager.getConnection(url, user, password);
                                      Statement st = conn.createStatement()) {
-                                    ResultSet rs = st.executeQuery("SELECT \n" +
-                                            "    e.nombre AS equipo,\n" +
-                                            "    e.pais,\n" +
-                                            "    COUNT(DISTINCT c.id_ciclista) AS num_ciclistas,\n" +
-                                            "    SUM(p.puntos) AS total,\n" +
-                                            "    ROUND(AVG(c.edad)) AS edad\n" +
-                                            "FROM equipo e\n" +
-                                            "JOIN ciclista c ON e.id_equipo = c.id_equipo\n" +
-                                            "JOIN participacion p ON c.id_ciclista = p.id_ciclista\n" +
-                                            "GROUP BY e.nombre, e.pais\n" +
-                                            "HAVING COUNT(DISTINCT c.id_ciclista) <= (\n" +
-                                            "    SELECT MAX(puntos)\n" +
-                                            "    FROM participacion\n" +
-                                            ")\n" +
-                                            "ORDER BY total DESC");
+                                    ResultSet rs = st.executeQuery("SELECT E.NOMBRE, E.PAIS, COUNT(DISTINCT C.ID_CICLISTA) AS TOTAL, SUM(P.PUNTOS) AS SUMA, ROUND(AVG(C.EDAD)) AS MEDIA,\n" +
+                                            "    (SELECT C2.NOMBRE\n" +
+                                            "    FROM CICLISTA C2 JOIN PARTICIPACION P2 ON C2.ID_CICLISTA=P2.ID_CICLISTA\n" +
+                                            "    WHERE C2.ID_EQUIPO=E.ID_EQUIPO\n" +
+                                            "    GROUP BY C2.NOMBRE\n" +
+                                            "    ORDER BY SUM(P2.PUNTOS) DESC\n" +
+                                            "    FETCH FIRST 1 ROW ONLY) AS MEJOR\n" +
+                                            "FROM EQUIPO E JOIN CICLISTA C ON E.ID_EQUIPO=C.ID_EQUIPO\n" +
+                                            "JOIN PARTICIPACION P ON C.ID_CICLISTA=P.ID_CICLISTA\n" +
+                                            "GROUP BY E.ID_EQUIPO, E.NOMBRE, E.PAIS\n" +
+                                            "ORDER BY SUMA DESC");
                                     while (rs.next()) {
                                         System.out.println(
-                                                "Ciclista: " + rs.getString("ciclista") +
-                                                        " | Equipo: " + rs.getString("equipo") +
-                                                        " | País: " + rs.getString("nacionalidad") +
-                                                        " | Total: " + rs.getInt("total") +
-                                                        " | Promedio: " + rs.getDouble("promedio") +
-                                                        " | Etapas: " + rs.getInt("numero de etapas")
+                                                "Equipo: " + rs.getString("NOMBRE") +
+                                                        " | País: " + rs.getString("PAIS") +
+                                                        " | Total ciclistas: " + rs.getInt("TOTAL") +
+                                                        " | Suma puntos: " + rs.getInt("SUMA") +
+                                                        " | Edad media: " + rs.getDouble("MEDIA") +
+                                                        " | Mejor ciclista: " + rs.getString("MEJOR")
                                         );
                                     }
                                 } catch (SQLException e) {
@@ -126,7 +122,7 @@ public class Main {
                     } while (opcionEquipos != 0);
 
                     break;
-
+//etapas "especiales"
                 case 3:
                     int opcionEtapas;
                     do {
@@ -141,8 +137,63 @@ public class Main {
                         teclado.nextLine();
 
                         switch (opcionEtapas) {
-                                case 1:
+                            case 1:
+                                try (Connection conn = DriverManager.getConnection(url, user, password);
+                                     Statement st = conn.createStatement()) {
 
+                                    ResultSet rs = st.executeQuery("""
+                                    SELECT E.NUMERO, E.ORIGEN, E.DESTINO, E.FECHA, E.DISTANCIA_KM
+                                    FROM ETAPA E
+                                    WHERE 
+                                        E.DISTANCIA_KM > (SELECT AVG(DISTANCIA_KM) FROM ETAPA)
+                                        OR E.DISTANCIA_KM = (SELECT MAX(DISTANCIA_KM) FROM ETAPA)
+                                        OR E.DISTANCIA_KM = (SELECT MIN(DISTANCIA_KM) FROM ETAPA)
+                                        OR E.NUMERO IN (
+                                            SELECT NUMERO_ETAPA
+                                            FROM PARTICIPACION
+                                            WHERE PUNTOS > 0
+                                            GROUP BY NUMERO_ETAPA
+                                            HAVING COUNT(DISTINCT ID_CICLISTA) > 10
+                                        )
+                                    ORDER BY E.NUMERO
+                                """);
+
+                                    while (rs.next()) {
+                                        int numero = rs.getInt("NUMERO");
+
+                                        System.out.println("\nEtapa " + numero);
+                                        System.out.println(rs.getString("ORIGEN") + " → " + rs.getString("DESTINO"));
+                                        System.out.println("Fecha: " + rs.getString("FECHA"));
+                                        System.out.println("Distancia: " + rs.getDouble("DISTANCIA_KM"));
+
+                                        // TOP 3 ciclistas
+                                        try (PreparedStatement ps = conn.prepareStatement("""
+                                        SELECT C.NOMBRE, P.PUNTOS
+                                        FROM PARTICIPACION P
+                                        JOIN CICLISTA C ON P.ID_CICLISTA = C.ID_CICLISTA
+                                        WHERE P.NUMERO_ETAPA = ?
+                                        ORDER BY P.PUNTOS DESC
+                                        FETCH FIRST 3 ROWS ONLY
+                                    """)) {
+
+                                            ps.setInt(1, numero);
+
+                                            try (ResultSet top3 = ps.executeQuery()) {
+                                                System.out.println("Top 3:");
+                                                int pos = 1;
+                                                while (top3.next()) {
+                                                    System.out.println(pos + ". " +
+                                                            top3.getString("NOMBRE") +
+                                                            " (" + top3.getInt("PUNTOS") + " pts)");
+                                                    pos++;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                } catch (SQLException e) {
+                                    System.out.println("ERROR: " + e.getMessage());
+                                }
                                 break;
                             case 0:
                                 System.out.println("Volviendo al menú principal...");
