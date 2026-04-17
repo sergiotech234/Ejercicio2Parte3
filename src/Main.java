@@ -138,63 +138,38 @@ public class Main {
 
                         switch (opcionEtapas) {
                             case 1:
-                                try (Connection conn = DriverManager.getConnection(url, user, password);
-                                     Statement st = conn.createStatement()) {
-
-                                    ResultSet rs = st.executeQuery("""
-                                    SELECT E.NUMERO, E.ORIGEN, E.DESTINO, E.FECHA, E.DISTANCIA_KM
-                                    FROM ETAPA E
-                                    WHERE 
-                                        E.DISTANCIA_KM > (SELECT AVG(DISTANCIA_KM) FROM ETAPA)
-                                        OR E.DISTANCIA_KM = (SELECT MAX(DISTANCIA_KM) FROM ETAPA)
-                                        OR E.DISTANCIA_KM = (SELECT MIN(DISTANCIA_KM) FROM ETAPA)
-                                        OR E.NUMERO IN (
-                                            SELECT NUMERO_ETAPA
-                                            FROM PARTICIPACION
-                                            WHERE PUNTOS > 0
-                                            GROUP BY NUMERO_ETAPA
-                                            HAVING COUNT(DISTINCT ID_CICLISTA) > 10
-                                        )
-                                    ORDER BY E.NUMERO
-                                """);
-
+                            try (Connection conn = DriverManager.getConnection(url, user, password);
+                                 Statement st = conn.createStatement()) {
+                                ResultSet rs = st.executeQuery("SELECT DISTINCT E.NUMERO as numero, E.ORIGEN as origen, E.DESTINO as destino, E.FECHA as fecha, E.DISTANCIA_KM as distnacia_km\n" +
+                                        "FROM ETAPA E JOIN PARTICIPACION P ON E.NUMERO=P.NUMERO_ETAPA\n" +
+                                        "WHERE DISTANCIA_KM >(\n" +
+                                        "    SELECT AVG(DISTANCIA_KM)\n" +
+                                        "    FROM ETAPA) \n" +
+                                        "OR DISTANCIA_KM=(\n" +
+                                        "    SELECT MAX(DISTANCIA_KM)\n" +
+                                        "    FROM ETAPA)\n" +
+                                        "OR DISTANCIA_KM=(\n" +
+                                        "    SELECT MIN(DISTANCIA_KM)\n" +
+                                        "    FROM ETAPA)\n" +
+                                        "OR (\n" +
+                                        "    SELECT COUNT(DISTINCT(ID_CICLISTA))\n" +
+                                        "    FROM PARTICIPACION\n" +
+                                        "    WHERE PUNTOS >0)>10\n" +
+                                        "FETCH FIRST 3 ROWS ONLY");
+                                while (rs.next()) {
                                     while (rs.next()) {
-                                        int numero = rs.getInt("NUMERO");
-
-                                        System.out.println("\nEtapa " + numero);
-                                        System.out.println(rs.getString("ORIGEN") + " → " + rs.getString("DESTINO"));
-                                        System.out.println("Fecha: " + rs.getString("FECHA"));
-                                        System.out.println("Distancia: " + rs.getDouble("DISTANCIA_KM"));
-
-                                        // TOP 3 ciclistas
-                                        try (PreparedStatement ps = conn.prepareStatement("""
-                                        SELECT C.NOMBRE, P.PUNTOS
-                                        FROM PARTICIPACION P
-                                        JOIN CICLISTA C ON P.ID_CICLISTA = C.ID_CICLISTA
-                                        WHERE P.NUMERO_ETAPA = ?
-                                        ORDER BY P.PUNTOS DESC
-                                        FETCH FIRST 3 ROWS ONLY
-                                    """)) {
-
-                                            ps.setInt(1, numero);
-
-                                            try (ResultSet top3 = ps.executeQuery()) {
-                                                System.out.println("Top 3:");
-                                                int pos = 1;
-                                                while (top3.next()) {
-                                                    System.out.println(pos + ". " +
-                                                            top3.getString("NOMBRE") +
-                                                            " (" + top3.getInt("PUNTOS") + " pts)");
-                                                    pos++;
-                                                }
-                                            }
-                                        }
+                                        System.out.println(
+                                                "Etapa " + rs.getInt("numero") +
+                                                        " | " + rs.getString("origen") + " → " + rs.getString("destino") +
+                                                        " | Fecha: " + rs.getString("fecha") +
+                                                        " | Distancia: " + rs.getDouble("distnacia_km")
+                                        );
                                     }
-
-                                } catch (SQLException e) {
-                                    System.out.println("ERROR: " + e.getMessage());
                                 }
-                                break;
+                            } catch (SQLException e) {
+                                System.out.println("ERROR: " + e.getMessage());
+                            }
+                            break;
                             case 0:
                                 System.out.println("Volviendo al menú principal...");
                                 break;
