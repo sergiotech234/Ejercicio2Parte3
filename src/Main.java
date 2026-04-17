@@ -132,10 +132,8 @@ public class Main {
                         System.out.println("1. Mostrar las etapas especiales");
                         System.out.println("0. Volver");
                         System.out.print("Opción: ");
-
                         opcionEtapas = teclado.nextInt();
                         teclado.nextLine();
-
                         switch (opcionEtapas) {
                             case 1:
                             try (Connection conn = DriverManager.getConnection(url, user, password);
@@ -176,15 +174,11 @@ public class Main {
                             default:
                                 System.out.println("Opción no válida");
                         }
-
                     } while (opcionEtapas != 0);
-
                     break;
-
                 case 0:
                     System.out.println("Saliendo del programa...");
                     break;
-
                 default:
                     System.out.println("Opción no válida");
             }
